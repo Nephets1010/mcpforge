@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 The mcpforge Authors. Licensed under the Apache License, Version 2.0 (the "License"); see the
+  LICENSE file in the project root for the full license text.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    父 POM：Spring Boot 3.5.16 + Java 21
+    - Boot 3.5.16 是 3.5 线最后一个 OSS 补丁版本（OSS 支持已于 2026-06-30 结束），与家族保持一致
+    - JDK 21 提供虚拟线程与 record pattern，是整套基础设施的硬前提
+  -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>io.github.nephets</groupId>
+  <artifactId>mcpforge</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+
+  <name>mcpforge</name>
+  <description>MCP（Model Context Protocol）工具/服务锻造库：纯 Java 的 JSON-RPC 2.0 核心 + Spring Boot 自动装配，把任意 Spring Bean 方法暴露为 MCP 工具。</description>
+  <url>https://github.com/Nephets1010/mcpforge</url>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <id>nephets</id>
+      <name>mcpforge maintainers</name>
+      <url>https://github.com/Nephets1010</url>
+    </developer>
+  </developers>
+
+  <scm>
+    <url>https://github.com/Nephets1010/mcpforge</url>
+    <connection>scm:git:https://github.com/Nephets1010/mcpforge.git</connection>
+  </scm>
+
+  <modules>
+    <module>mcpforge-core</module>
+    <module>mcpforge-starter</module>
+    <module>mcpforge-sample</module>
+  </modules>
+
+  <!--
+    ★ 预先定义一个空的 argLine 属性。
+      surefire / failsafe 用 @{argLine} 引用它，jacoco:prepare-agent 在运行期把
+      -javaagent:... 注入进来。若不预先定义 argLine，@{argLine} 会保持字面量不被解析，
+      导致 jacoco 找不到执行数据 —— 覆盖率报告为空，而 check 规则会因「无数据」静默通过。
+      那比没有门禁更危险：它会让人误以为覆盖率已达标。
+  -->
+  <properties>
+    <argLine></argLine>
+    <java.version>21</java.version>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <assertj.version>3.27.3</assertj.version>
+    <spotless.version>2.44.4</spotless.version>
+    <google-java-format.version>1.25.2</google-java-format.version>
+    <jacoco.version>0.8.13</jacoco.version>
+
+    <!-- ==== 覆盖率门禁 ==== -->
+    <jacoco.skip>false</jacoco.skip>
+    <jacoco.line.minimum>0.60</jacoco.line.minimum>
+    <jacoco.line.minimum.core>0.75</jacoco.line.minimum.core>
+    <!--
+      ★ 覆盖率执行数据存放位置（必须是纯 ASCII 路径）。
+      中文路径下 -javaagent 参数会被截断，jacoco 注入失效、覆盖率报告为空。
+      ${project.artifactId}.exec 为 ASCII，且被 `mvn clean` 一并清掉，避免上一轮 .exec 污染。
+      父 pom（packaging=pom）没有测试执行数据，显式跳过 report/check。
+    -->
+    <jacoco.dest.dir>${project.build.directory}/${project.artifactId}.exec</jacoco.dest.dir>
+    <jacoco.report.skip>true</jacoco.report.skip>
+    <jacoco.coverage>enabled</jacoco.coverage>
+
+    <!--
+      测试 JVM 堆大小。显式设限，避免内存受限环境把 forked VM 直接判死（只报 forked VM terminated）。
+      512m 足以跑完全部用例；更紧张的环境可用 -Dswy.test.heap=256m 覆盖。
+    -->
+    <swy.test.heap>512m</swy.test.heap>
+    <swy.failsafe.heap>768m</swy.failsafe.heap>
+
+    <maven.javadoc.skip>false</maven.javadoc.skip>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- 本仓模块 -->
+      <dependency>
+        <groupId>io.github.nephets</groupId>
+        <artifactId>mcpforge-core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.nephets</groupId>
+        <artifactId>mcpforge-starter</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- 三方 -->
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>${assertj.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <release>${maven.compiler.release}</release>
+            <parameters>true</parameters>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <includes>
+              <include>**/*Test.java</include>
+            </includes>
+            <excludes>
+              <exclude>**/*IT.java</exclude>
+            </excludes>
+            <argLine>@{argLine} -Xmx${swy.test.heap} -Xms64m -XX:+ExitOnOutOfMemoryError</argLine>
+            <workingDirectory>${project.basedir}</workingDirectory>
+            <forkCount>1</forkCount>
+            <reuseForks>true</reuseForks>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <includes>
+              <include>**/*IT.java</include>
+            </includes>
+            <argLine>@{argLine} -Xmx${swy.failsafe.heap}</argLine>
+            <workingDirectory>${project.basedir}</workingDirectory>
+            <forkCount>1</forkCount>
+            <reuseForks>true</reuseForks>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>${jacoco.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <version>${spotless.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <!-- ==== 强制 Java 21 与 Maven 版本 ==== -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-build-environment</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[21,22)</version>
+                  <message>本项目需要 JDK 21（使用 record pattern 与虚拟线程）。当前 JAVA_HOME=$(java.home)</message>
+                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[3.9.9,)</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- ==== 统一代码格式：google-java-format + Apache-2.0 许可证头 ==== -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>spotless-apply</id>
+            <goals>
+              <goal>apply</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <java>
+            <includes>
+              <include>src/main/java/**/*.java</include>
+              <include>src/test/java/**/*.java</include>
+            </includes>
+            <licenseHeader>
+              <file>${maven.multiModuleProjectDirectory}/LICENSE-HEADER.txt</file>
+            </licenseHeader>
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+              <style>AOSP</style>
+            </googleJavaFormat>
+            <removeUnusedImports/>
+            <importOrder>
+              <order>com,io,org,javax,java,\#</order>
+            </importOrder>
+          </java>
+          <formats>
+            <format>
+              <includes>
+                <include>*.md</include>
+                <include>docs/**/*.md</include>
+              </includes>
+              <trimTrailingWhitespace/>
+              <endWithNewline/>
+            </format>
+          </formats>
+        </configuration>
+      </plugin>
+
+      <!-- ==== 覆盖率：core ≥ 75%，其余 ≥ 60% ==== -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <destFile>${jacoco.dest.dir}</destFile>
+              <append>false</append>
+            </configuration>
+          </execution>
+          <execution>
+            <id>prepare-agent-integration</id>
+            <goals>
+              <goal>prepare-agent-integration</goal>
+            </goals>
+            <configuration>
+              <destFile>${jacoco.dest.dir}</destFile>
+              <append>true</append>
+            </configuration>
+          </execution>
+          <execution>
+            <id>coverage-report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <configuration>
+              <dataFile>${jacoco.dest.dir}</dataFile>
+              <formats>
+                <format>HTML</format>
+                <format>XML</format>
+                <format>CSV</format>
+              </formats>
+            </configuration>
+          </execution>
+          <execution>
+            <id>coverage-check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <haltOnFailure>true</haltOnFailure>
+              <dataFile>${jacoco.dest.dir}</dataFile>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.line.minimum}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
